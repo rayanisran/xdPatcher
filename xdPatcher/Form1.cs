@@ -1,6 +1,13 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
+using Microsoft.Win32;
+using Microsoft.WindowsAPICodePack.Dialogs;
+using static Microsoft.WindowsAPICodePack.Shell.PropertySystem.SystemProperties.System;
 
 namespace xdPatcher
 {
@@ -13,115 +20,96 @@ namespace xdPatcher
 
         Info inf = new Info();
 
+        // list of xdelta files
+        List<string> files = new List<string>();
+        string romExtension = "";
+        string[] ROMExtensionChoices = { ".z64", ".nds" };
+
         private void button1_Click(object sender, EventArgs e)
         {
-            OpenFileDialog open = new OpenFileDialog();
-            open.Filter = "Nintendo DS ROMs|*.nds|All files|*.*";
+            System.Windows.Forms.OpenFileDialog open = new System.Windows.Forms.OpenFileDialog();
+            open.Filter = "All files|*.*";
             if (open.ShowDialog() == DialogResult.OK)
             {
-                textBox1.Text = open.FileName;
+                ogROM.Text = open.FileName;
+                romExtension = Path.GetExtension(open.FileName);
             }
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
-            OpenFileDialog open = new OpenFileDialog();
-            open.Filter = "xdelta Patch Files|*.xdelta|All files|*.*";
-            if (open.ShowDialog() == DialogResult.OK)
+            var folderBrowser = new CommonOpenFileDialog { IsFolderPicker = true };
+            string fn = "";
+
+            if (folderBrowser.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                textBox2.Text = open.FileName;
-            }
+                fn = folderBrowser.FileName;
+                xdeltaDir.Text = folderBrowser.FileName;
+                outDir.Text = Path.GetDirectoryName(ogROM.Text) + @"\Patched\";
+            }    
+
+            files = Directory.GetFiles(fn).ToList();
+
+            // remove files that don't have a .xdelta extension.
+            string targetExtension = ".xdelta";
+            files.RemoveAll(fileName => !fileName.EndsWith(targetExtension));
         }
 
         private void button3_Click(object sender, EventArgs e)
         {
-            SaveFileDialog open = new SaveFileDialog();
-            open.Filter = "Nintendo DS ROMs|*.nds|All files|*.*";
-            if (open.ShowDialog() == DialogResult.OK)
+            var folderBrowser = new CommonOpenFileDialog { IsFolderPicker = true };
+            if (folderBrowser.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                textBox3.Text = open.FileName;
-            }
-        }
-
-        private void button4_Click(object sender, EventArgs e)
-        {
-            OpenFileDialog open = new OpenFileDialog();
-            open.Filter = "Nintendo DS ROMs|*.nds|All files|*.*";
-            if (open.ShowDialog() == DialogResult.OK)
-            {
-                textBox4.Text = open.FileName;
-            }
-        }
-
-        private void button7_Click(object sender, EventArgs e)
-        {
-            OpenFileDialog open = new OpenFileDialog();
-            open.Filter = "Nintendo DS ROMs|*.nds|All files|*.*";
-            if (open.ShowDialog() == DialogResult.OK)
-            {
-                textBox5.Text = open.FileName;
-            }
-        }
-
-        private void button8_Click(object sender, EventArgs e)
-        {
-            SaveFileDialog open = new SaveFileDialog();
-            open.Filter = "xdelta Patch Files|*.xdelta|All files|*.*";
-            if (open.ShowDialog() == DialogResult.OK)
-            {
-                textBox6.Text = open.FileName;
+                String fn = folderBrowser.FileName;
             }
         }
 
         private void button5_Click(object sender, EventArgs e)
         {
-            System.Diagnostics.Process proc = new System.Diagnostics.Process();
-            proc.StartInfo.FileName = "xdelta3.exe";
-            proc.StartInfo.Arguments = " -d -s " + '"' + textBox1.Text + '"' + " " + '"' + textBox2.Text + '"' + " " + '"' + textBox3.Text + '"';
-            proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-            proc.Start();
-            proc.WaitForExit();
-            try
-            {
-                var RP = @textBox3.Text;
-                StreamReader sr = new StreamReader(RP);
-                var IP = sr.ReadToEnd();
-                sr.Close();
-                label7.Text = IP;
-                MessageBox.Show("Apply patch complete!",label7.Text);
+            int successCount = 0;
+            //List<string> failedPatches = new List<string>();
+
+            // make copies of the ROM
+            foreach (string f in files) {
+
+                // make a copy of the OG ROM, rename it, and put it in a patched folder directory
+                string sourcePath = ogROM.Text;
+                string destFolder = Path.GetDirectoryName(sourcePath) + @"\Patched\";
+
+                // make folder if it doesn't already exist
+                if (!Directory.Exists(destFolder)) { 
+                    Directory.CreateDirectory(destFolder);
+                }
+
+                string patchedFileDest = destFolder + Path.GetFileNameWithoutExtension(f) + romExtension;
+
+                System.Diagnostics.Process proc = new System.Diagnostics.Process();
+                proc.StartInfo.FileName = AppDomain.CurrentDomain.BaseDirectory + "xdelta3.exe";
+                proc.StartInfo.Arguments = " -d -s " + '"' + sourcePath + '"' + " " + '"' + f + '"' + " " + '"' + patchedFileDest + '"';
+                proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+
+                toolStripStatusLabel4.Text = "Applying patches, gimme a sec...";
+                proc.Start();
+                proc.WaitForExit();
+                try
+                {
+                    toolStripStatusLabel4.Text = $"Applied patch {f} to {patchedFileDest}";
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    toolStripStatusLabel4.Text = $"Failed to apply patch {f} to {patchedFileDest}";
+                    //failedPatches.Add(f);
+                }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Apply patch failed.",ex.HelpLink);
-            }
+            toolStripStatusLabel4.Text = "Applied patches.";
+            MessageBox.Show($"Applied {successCount}" + "/" + files.Count() + " patches.");
+
         }
 
         private void textBox1_TextChanged(object sender, EventArgs e)
         {
 
-        }
-
-        private void button6_Click(object sender, EventArgs e)
-        {
-            System.Diagnostics.Process proc = new System.Diagnostics.Process();
-            proc.StartInfo.FileName = "xdelta3.exe";
-            proc.StartInfo.Arguments = " -e -s " + '"' + textBox4.Text + '"' + " " + '"' + textBox5.Text + '"' + " " + '"' + textBox6.Text + '"';
-            proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
-            proc.Start();
-            proc.WaitForExit();
-            try
-            {
-                var RP = @textBox5.Text;
-                StreamReader sr = new StreamReader(RP);
-                var IP = sr.ReadToEnd();
-                sr.Close();
-                label7.Text = IP;
-                MessageBox.Show("Make patch complete!", label7.Text);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Make patch failed.", ex.HelpLink);
-            }
         }
 
         private void button9_Click(object sender, EventArgs e)
@@ -132,10 +120,9 @@ namespace xdPatcher
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            this.Width = 536;
-            this.Height = 209;
-            textBox1.Select();
-            label7.Visible = false ;
+            //this.Width = 536;
+            //this.Height = 209;
+            ogROM.Select();
             if(WindowState == FormWindowState.Maximized)
             {
                 Application.Exit();
@@ -146,24 +133,6 @@ namespace xdPatcher
 
         private void copyToolStripMenuItem_Click(object sender, EventArgs e)
         {
-        }
-
-        private void button10_Click(object sender, EventArgs e)
-        {
-            if (button10.Text == "+")
-            {
-                Width = 536;
-                Height = 345;
-                button10.Text = "-";
-                toolStripStatusLabel3.Text = "Hide more options";
-            }
-            else if (button10.Text == "-")
-            {
-                Width = 536;
-                Height = 209;
-                button10.Text = "+";
-                toolStripStatusLabel3.Text = "Show more options";
-            }
         }
 
         private void button1_MouseHover(object sender, EventArgs e)
@@ -252,23 +221,6 @@ namespace xdPatcher
         }
 
         private void button9_MouseLeave(object sender, EventArgs e)
-        {
-            toolStripStatusLabel3.Text = "";
-        }
-
-        private void button10_MouseHover(object sender, EventArgs e)
-        {
-            if (button10.Text == "+")
-            {
-                toolStripStatusLabel3.Text = "Show more options";
-            }
-            else if (button10.Text == "-")
-            {
-                toolStripStatusLabel3.Text = "Hide more options";
-            }
-        }
-
-        private void button10_MouseLeave(object sender, EventArgs e)
         {
             toolStripStatusLabel3.Text = "";
         }
