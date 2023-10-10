@@ -1,6 +1,6 @@
 # Batch xdelta Patcher
 
-This tool allows you to apply a bunch of xdelta files at once, without having to create copies of the original ROM and applying each patch separately. Just select a folder that contains all the patches and click an `Apply` button.
+This tool allows you to apply a bunch of xdelta files at once, without having to create copies of the original ROM and apply each patch separately. Just select a folder that contains all the patches and click an `Apply` button.
 
 ## Instructions
 
